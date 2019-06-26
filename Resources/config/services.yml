@@ -57,7 +57,7 @@ services:
         class: "%pvr_ezcomment.service.class%"
         calls:
             - [setRequest, ["@request_stack"]]
-            - [setSecurity, ["@security.context"]]
+            - [setSecurity, ["@security.authorization_checker"]]
         arguments:
             - "@pvr_ezcomment.manager"
             - "@ezpublish.connection"
