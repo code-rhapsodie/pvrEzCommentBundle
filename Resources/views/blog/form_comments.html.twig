@@ -5,7 +5,7 @@
 
 {% form_theme form with 'PvrEzCommentBundle:form:captcha.html.twig' %}
 
-<form id="commentForm" action="{{ path( 'pvrezcomment_add', { 'contentId': contentId } ) }}" method="post" {{ form_enctype(form) }}>
+<form id="commentForm" action="{{ path( 'pvrezcomment_add', { 'contentId': contentId } ) }}" method="post">
     {{ form_widget(form) }}
 
     <div>
