@@ -68,7 +68,6 @@ services:
     # Pjax Dashboard Controller service
     pvr_ezcomment.controller.dashboard:
         class: '%pvr_ezcomment.controller.dashboard.class%'
-        parent: ezsystems.platformui.controller.base
 
     # Rest Controller
     pvrEzCommentBundle.controller.comment:
