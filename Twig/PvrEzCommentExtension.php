@@ -51,9 +51,9 @@ class PvrEzCommentExtension extends \Twig_Extension
     public function getFilters()
     {
         return array(
-            'getCountComments' => new \Twig_Filter_Method( $this, 'countCommentsFilter' ),
-            'getContentName' => new \Twig_Filter_Method( $this, 'getContentName' ),
-            'getMainLocation' => new \Twig_Filter_Method( $this, 'getMainLocation' ),
+            new \Twig_SimpleFilter( 'getCountComments', array($this, 'countCommentsFilter') ),
+            new \Twig_SimpleFilter( 'getContentName', array($this, 'getContentName') ),
+            new \Twig_SimpleFilter( 'getMainLocation', array($this, 'getMainLocation') ),
         );
     }
 

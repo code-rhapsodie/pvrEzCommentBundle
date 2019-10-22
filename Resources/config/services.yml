@@ -57,7 +57,7 @@ services:
         class: "%pvr_ezcomment.service.class%"
         calls:
             - [setRequest, ["@request_stack"]]
-            - [setSecurity, ["@security.context"]]
+            - [setSecurity, ["@security.authorization_checker"]]
         arguments:
             - "@pvr_ezcomment.manager"
             - "@ezpublish.connection"
@@ -68,7 +68,6 @@ services:
     # Pjax Dashboard Controller service
     pvr_ezcomment.controller.dashboard:
         class: '%pvr_ezcomment.controller.dashboard.class%'
-        parent: ezsystems.platformui.controller.base
 
     # Rest Controller
     pvrEzCommentBundle.controller.comment:
