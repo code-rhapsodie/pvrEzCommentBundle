@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the pvrEzComment package.
  *
@@ -38,9 +40,9 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     protected $moderate_to;
     protected $moderate_template;
     protected $isNotify;
-    /** @var  $translator \Symfony\Component\Translation\TranslatorInterface */
+    /** @var $translator \Symfony\Component\Translation\TranslatorInterface */
     protected $translator;
-    /** @var $formFactory  \Symfony\Component\Form\FormFactory */
+    /** @var $formFactory \Symfony\Component\Form\FormFactory */
     protected $formFactory;
     protected $twig;
     protected $mailer;
@@ -55,14 +57,14 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         ChainRouter $route,
         Connection $connection
     ) {
-        $this->anonymous_access = $config["anonymous"];
-        $this->moderating = $config["moderating"];
-        $this->comment_reply = $config["comment_reply"];
-        $this->moderate_subject = $config["moderate_subject"];
-        $this->moderate_from = $config["moderate_from"];
-        $this->moderate_to = $config["moderate_to"];
-        $this->moderate_template = $config["moderate_template"];
-        $this->isNotify = $config["notify_enabled"];
+        $this->anonymous_access = $config['anonymous'];
+        $this->moderating = $config['moderating'];
+        $this->comment_reply = $config['comment_reply'];
+        $this->moderate_subject = $config['moderate_subject'];
+        $this->moderate_from = $config['moderate_from'];
+        $this->moderate_to = $config['moderate_to'];
+        $this->moderate_template = $config['moderate_template'];
+        $this->isNotify = $config['notify_enabled'];
         $this->mailer = $mailer;
         $this->encryption = $encryption;
         $this->router = $route;
@@ -91,26 +93,27 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     }
 
     /**
-     * Get list of comments depending of contentId and status
+     * Get list of comments depending of contentId and status.
      *
-     * @param int $contentId Get content Id to fetch comments
+     * @param int   $contentId      Get content Id to fetch comments
      * @param array $viewParameters
-     * @param int $status
+     * @param int   $status
+     *
      * @return mixed Array or false
      */
     public function getComments(int $contentId, array $viewParameters = array(), int $status = self::COMMENT_ACCEPT)
     {
         $selectQuery = $this->connection->createQueryBuilder();
 
-        $column = "created";
+        $column = 'created';
         $sort = 'DESC';
 
         // Configure how to sort things
         if (!empty($viewParameters)) {
-            if ($viewParameters['cSort'] == "author") {
-                $column = "name";
+            if ('author' == $viewParameters['cSort']) {
+                $column = 'name';
             }
-            if ($viewParameters['cOrder'] == 'asc') {
+            if ('asc' == $viewParameters['cOrder']) {
                 $sort = 'ASC';
             }
         }
@@ -136,7 +139,6 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
                 )
             )->orderBy($column, $sort);
         $statement = $selectQuery->execute();
-
 
         $comments = $statement->fetchAll(\PDO::FETCH_ASSOC);
         if ($this->comment_reply) {
@@ -164,29 +166,29 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
                 ->orderBy($column, $sort);
             $statement = $selectQuery->execute();
 
-
             $childs = $statement->fetchAll(\PDO::FETCH_ASSOC);
 
-            for ($i = 0; $i < count($comments); $i++) {
-                for ($j = 0; $j < count($childs); $j++) {
+            for ($i = 0; $i < count($comments); ++$i) {
+                for ($j = 0; $j < count($childs); ++$j) {
                     if ($comments[$i]['id'] == $childs[$j]['parent_comment_id']) {
                         $comments[$i]['children'][] = $childs[$j];
                     }
                 }
             }
         }
+
         return $comments;
     }
 
     /**
-     * Add a comment via an ezuser
+     * Add a comment via an ezuser.
      *
-     * @param Request $request
-     * @param EzUser $currentUser
+     * @param Request         $request
+     * @param EzUser          $currentUser
      * @param LocaleConverter $localeService
-     * @param array $data
-     * @param null $contentId
-     * @param null $sessionId
+     * @param array           $data
+     * @param null            $contentId
+     * @param null            $sessionId
      */
     public function addComment(
         Request $request,
@@ -196,10 +198,9 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         $contentId = null,
         $sessionId = null
     ) {
-
         $languageCode = $localeService->convertToEz($request->getLocale());
 
-        $created = $modified = \Time();
+        $created = $modified = \time();
         $status = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
         $parentCommentId = $data['parent_comment_id'];
 
@@ -214,21 +215,21 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
             'parent_comment_id' => $parentCommentId,
             'name' => $currentUser->versionInfo->contentInfo->name,
             'email' => $currentUser->email,
-            'url' => "",
+            'url' => '',
             'text' => $data['message'],
             'status' => $status,
-            'title' => "",
+            'title' => '',
         ]);
 
         return $this->connection->lastInsertId();
     }
 
     /**
-     * Add an anonymous comment
+     * Add an anonymous comment.
      *
-     * @param Request $request
+     * @param Request         $request
      * @param LocaleConverter $localeService
-     * @param array $data
+     * @param array           $data
      * @param $contentId
      * @param null $sessionId
      */
@@ -239,22 +240,20 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         $contentId,
         $sessionId = null
     ) {
-
         $languageCode = $localeService->convertToEz($request->getLocale());
         $languageId = $this->getLanguageId($languageCode);
 
-        $created = $modified = \Time();
+        $created = $modified = \time();
         $userId = self::ANONYMOUS_USER;
         $sessionKey = $sessionId;
         $ip = $request->getClientIp();
         $parentCommentId = 0;
         $name = $data['name'];
         $email = $data['email'];
-        $url = "";
+        $url = '';
         $text = $data['message'];
         $status = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
-        $title = "";
-
+        $title = '';
 
         $this->connection->insert('ezcomment', [
             'language_id' => $languageId,
@@ -276,9 +275,8 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         return $this->connection->lastInsertId();
     }
 
-
     /**
-     * Create an anonymous form
+     * Create an anonymous form.
      *
      * @return mixed
      */
@@ -288,7 +286,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     }
 
     /**
-     * Create an ezuser form
+     * Create an ezuser form.
      *
      * @return mixed
      */
@@ -298,9 +296,10 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     }
 
     /**
-     * Get validation error from form
+     * Get validation error from form.
      *
      * @param \Symfony\Component\Form\Form $form the form
+     *
      * @return array errors messages
      */
     public function getErrorMessages(Form $form)
@@ -327,11 +326,11 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     }
 
     /**
-     * Send message to admin(s)
+     * Send message to admin(s).
      */
     public function sendMessage($data, $user, $contentId, $sessionId, $commentId)
     {
-        if ($user === null) {
+        if (null === $user) {
             $name = $data[$this->translator->trans('name')];
             $email = $data[$this->translator->trans('email')];
         } else {
@@ -347,7 +346,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
                 'contentId' => $contentId,
                 'sessionHash' => $encodeSession,
                 'action' => 'approve',
-                'commentId' => $commentId
+                'commentId' => $commentId,
             ),
             true
         );
@@ -357,7 +356,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
                 'contentId' => $contentId,
                 'sessionHash' => $encodeSession,
                 'action' => 'reject',
-                'commentId' => $commentId
+                'commentId' => $commentId,
             ),
             true
         );
@@ -368,26 +367,26 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
             ->setTo($this->moderate_to)
             ->setBody(
                 $this->twig->render($this->moderate_template, array(
-                    "name" => $name,
-                    "email" => $email,
-                    "comment" => $data['message'],
-                    "approve_url" => $approve_url,
-                    "reject_url" => $reject_url
+                    'name' => $name,
+                    'email' => $email,
+                    'comment' => $data['message'],
+                    'approve_url' => $approve_url,
+                    'reject_url' => $reject_url,
                 ))
             );
         $this->mailer->send($message);
     }
 
     /**
-     * Check if status of comment is on waiting
+     * Check if status of comment is on waiting.
      *
      * @param $contentId
      * @param $sessionHash
+     *
      * @return bool
      */
     public function canUpdate($contentId, $sessionHash, $commentId)
     {
-
         $session_id = $this->encryption->decode($sessionHash);
 
         $selectQuery = $this->connection->createQueryBuilder();
@@ -419,17 +418,19 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         );
         $statement = $selectQuery->execute();
 
-
         $row = $statement->fetch();
-        return $row !== false ? true : false;
+
+        return false !== $row ? true : false;
     }
 
     /**
-     * Update status of a comment
+     * Update status of a comment.
      *
      * @param int $commentId
      * @param int $status
+     *
      * @return mixed
+     *
      * @throws \Doctrine\DBAL\DBALException
      */
     public function updateStatus($commentId, $status = self::COMMENT_ACCEPT)
@@ -444,7 +445,9 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * @param int $commentId
      * @param int $status
+     *
      * @return mixed
+     *
      * @throws \Doctrine\DBAL\DBALException
      */
     public function updateStatusFromUI($commentId, $status = self::COMMENT_REJECTED)
@@ -458,12 +461,12 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
 
     /**
      * @param bool|int $contentId
-     * @param int $status
+     * @param int      $status
+     *
      * @return int
      */
     public function getCountComments($contentId = false, $status = -1)
     {
-
         $selectQuery = $this->connection->createQueryBuilder();
         $selectQuery->select('*')->from('ezcomment');
 
@@ -474,7 +477,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
             ));
         }
 
-        if ($status && $status != -1) {
+        if ($status && -1 != $status) {
             $selectQuery->andWhere($selectQuery->expr()->eq(
                 'status',
                 $selectQuery->createNamedParameter($status, \PDO::PARAM_INT)
@@ -482,6 +485,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         }
 
         $statement = $selectQuery->execute();
+
         return $statement->rowCount();
     }
 
@@ -509,23 +513,22 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         return $this->moderating;
     }
 
-
     /**
-     * Get list of last comments
+     * Get list of last comments.
      *
      * @param int $limit
-     *
      * @param int $offset
      * @param int $status
+     *
      * @return mixed Array or false
+     *
      * @internal param bool $onlyAccept
      */
     public function getLastComments($limit = 5, $offset = 0, $status = -1)
     {
-
         $selectQuery = $this->connection->createQueryBuilder();
 
-        $column = "created";
+        $column = 'created';
         $sort = 'DESC';
 
         $selectQuery->select(
@@ -544,7 +547,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         );
 
         // Filter only by accept comment ...
-        if ($status !== -1) {
+        if (-1 !== $status) {
             $selectQuery->where(
                 $selectQuery->expr()->eq(
                     'status',
@@ -553,16 +556,15 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
             );
         }
 
-        $selectQuery->orderBy($column, $sort)->setMaxResults($limit)->setFirstResult((int)$offset);
+        $selectQuery->orderBy($column, $sort)->setMaxResults($limit)->setFirstResult((int) $offset);
 
         $statement = $selectQuery->execute();
-
 
         return $statement->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /**
-     * Get list of last comments
+     * Get list of last comments.
      *
      * @param $userId
      * @param int $limit
@@ -573,7 +575,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     {
         $selectQuery = $this->connection->createQueryBuilder();
 
-        $column = "created";
+        $column = 'created';
         $sort = 'DESC';
 
         $selectQuery
@@ -597,10 +599,11 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         return $statement->fetchAll(\PDO::FETCH_ASSOC);
     }
 
-
     /**
-     * Get ezcontent_language Id
+     * Get ezcontent_language Id.
+     *
      * @param $languageCode
+     *
      * @return int
      */
     protected function getLanguageId($languageCode)
@@ -619,20 +622,19 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         );
         $statement = $selectQuery->execute();
 
-
         $row = $statement->fetch();
         if (isset($row['id'])) {
             return $row['id'];
         }
-        {
-            return 0;
-        }
+
+        return 0;
     }
 
     /**
-     * Check if status exists
+     * Check if status exists.
      *
      * @param $status
+     *
      * @return bool
      */
     public function statusExists($status)
@@ -640,12 +642,13 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         return in_array($status, [
             self::COMMENT_WAITING,
             self::COMMENT_ACCEPT,
-            self::COMMENT_REJECTED
+            self::COMMENT_REJECTED,
         ]);
     }
 
     /**
      * @param $commentId
+     *
      * @return bool
      */
     public function commentExists($commentId)
@@ -664,6 +667,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
 
     /**
      * @param int $commentId
+     *
      * @throws NotFoundException
      * @throws \Doctrine\DBAL\DBALException
      * @throws \Doctrine\DBAL\Exception\InvalidArgumentException

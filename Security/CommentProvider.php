@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace pvr\EzCommentBundle\Security;
 
 use eZ\Bundle\EzPublishCoreBundle\DependencyInjection\Configuration\ConfigBuilderInterface;
@@ -7,7 +9,6 @@ use eZ\Bundle\EzPublishCoreBundle\DependencyInjection\Security\PolicyProvider\Po
 
 class CommentProvider implements PolicyProviderInterface
 {
-
     /**
      * Adds policies configuration hash to $configBuilder.
      *
@@ -21,10 +22,10 @@ class CommentProvider implements PolicyProviderInterface
     public function addPolicies(ConfigBuilderInterface $configBuilder)
     {
         $configBuilder->addConfig([
-            "comment" => [
-                "add" => null,
-                "edit" => null,
-                "delete" => null,
+            'comment' => [
+                'add' => null,
+                'edit' => null,
+                'delete' => null,
             ],
         ]);
     }

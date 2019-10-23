@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace pvr\EzCommentBundle\Form;
 
 use Gregwar\CaptchaBundle\Type\CaptchaType;
@@ -19,28 +21,27 @@ class AnonymousCommentType extends AbstractType
         $builder
             ->add('name', TextType::class, [
                 'constraints' => [
-                    new NotBlank()
+                    new NotBlank(),
                 ],
             ])
             ->add('email', EmailType::class, [
                 'constraints' => [
-                    new Email()
+                    new Email(),
                 ],
             ])
             ->add('message', TextareaType::class, [
                 'constraints' => [
-                    new NotBlank()
+                    new NotBlank(),
                 ],
             ])
             ->add('parent_comment_id', HiddenType::class, [
                 'constraints' => [
-                    new NotBlank()
+                    new NotBlank(),
                 ],
-                'data' => 0
+                'data' => 0,
             ])
             ->add('captcha', CaptchaType::class,
                 ['as_url' => true, 'reload' => true]
             );
     }
-
 }

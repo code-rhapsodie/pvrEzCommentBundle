@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace pvr\EzCommentBundle\Service;
 
 use eZ\Publish\API\Repository\Repository;
@@ -9,7 +11,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Translation\TranslatorInterface;
-
 
 class Comment
 {
@@ -26,9 +27,9 @@ class Comment
     /**
      * @param PvrEzCommentManager $commentManager
      * @param $connection
-     * @param LocaleConverter $locale
+     * @param LocaleConverter     $locale
      * @param TranslatorInterface $translator
-     * @param Repository $repository
+     * @param Repository          $repository
      */
     public function __construct(
         PvrEzCommentManager $commentManager,
@@ -45,7 +46,8 @@ class Comment
     }
 
     /**
-     * SecurityContext Dependency Injection
+     * SecurityContext Dependency Injection.
+     *
      * @param AuthorizationCheckerInterface $security
      */
     public function setSecurity(AuthorizationCheckerInterface $security)
@@ -54,9 +56,11 @@ class Comment
     }
 
     /**
-     * Fetch contents from a content Id
+     * Fetch contents from a content Id.
+     *
      * @param Request $request
-     * @param integer $contentId
+     * @param int     $contentId
+     *
      * @return array
      */
     public function getComments(Request $request, int $contentId)
@@ -73,8 +77,9 @@ class Comment
     }
 
     /**
-     * @param int $contentId
+     * @param int     $contentId
      * @param Request $request
+     *
      * @return Response return a json message
      */
     public function addComments(int $contentId, Request $request)
@@ -92,7 +97,6 @@ class Comment
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
-
             $currentUser = null;
             // Save data depending of user (anonymous or ezuser)
             if ($isAnonymous) {
@@ -125,24 +129,23 @@ class Comment
                     $request->getSession()->getId(),
                     $commentId
                 );
+
                 return new Response(
                     $this->translator->trans('Your comment should be moderate before publishing')
                 );
-
             }
+
             return new Response(
                 $this->translator->trans('Your comment has been added correctly')
             );
-
-
         }
 
         $errors = $this->commentManager->getErrorMessages($form);
 
         $response = new Response(json_encode($errors), 406);
         $response->headers->set('Content-Type', 'application/json');
-        return $response;
 
+        return $response;
     }
 
     /**

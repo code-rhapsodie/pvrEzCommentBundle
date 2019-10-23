@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the pvrEzComment package.
  *
@@ -15,76 +17,76 @@ use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 /**
- * This is the class that validates and merges configuration from your app/config files
+ * This is the class that validates and merges configuration from your app/config files.
  *
  * To learn more see {@link http://symfony.com/doc/current/cookbook/bundles/extension.html#cookbook-bundles-extension-config-class}
  */
 class Configuration implements ConfigurationInterface
 {
     /**
-     * {@inheritDoc}
+     * {@inheritdoc}
      */
     public function getConfigTreeBuilder()
     {
         $treeBuilder = new TreeBuilder();
-        $rootNode = $treeBuilder->root( 'pvr_ez_comment' );
+        $rootNode = $treeBuilder->root('pvr_ez_comment');
 
         $rootNode
             ->children()
-                ->booleanNode( 'anonymous' )
+                ->booleanNode('anonymous')
                     ->defaultFalse()
                 ->end()
-                ->booleanNode( 'moderating' )
+                ->booleanNode('moderating')
                     ->defaultFalse()
                 ->end()
-                ->booleanNode( 'comment_reply' )
+                ->booleanNode('comment_reply')
                     ->defaultFalse()
                 ->end()
-                ->arrayNode( 'moderate_mail' )
+                ->arrayNode('moderate_mail')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->scalarNode( 'subject' )
-                            ->defaultValue( 'New Notification' )
+                        ->scalarNode('subject')
+                            ->defaultValue('New Notification')
                             ->cannotBeEmpty()
                         ->end()
-                        ->scalarNode( 'from' )
-                            ->defaultValue( 'noreply@example.com' )
+                        ->scalarNode('from')
+                            ->defaultValue('noreply@example.com')
                             ->cannotBeEmpty()
                         ->end()
-                        ->scalarNode( 'to' )
+                        ->scalarNode('to')
                             ->defaultValue('me@example.com')
                             ->cannotBeEmpty()
                         ->end()
-                        ->scalarNode( 'template' )
-                            ->defaultValue( 'PvrEzCommentBundle:mail:email_moderate.txt.twig' )
+                        ->scalarNode('template')
+                            ->defaultValue('PvrEzCommentBundle:mail:email_moderate.txt.twig')
                             ->cannotBeEmpty()
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode( 'notify_mail' )
+                ->arrayNode('notify_mail')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->booleanNode( 'enabled' )
+                        ->booleanNode('enabled')
                             ->defaultFalse()
                         ->end()
-                        ->scalarNode( 'subject' )
-                            ->defaultValue( 'Your comment' )
+                        ->scalarNode('subject')
+                            ->defaultValue('Your comment')
                             ->cannotBeEmpty()
                         ->end()
-                        ->scalarNode( 'from' )
+                        ->scalarNode('from')
                             ->defaultValue('noreply@example.com')
                             ->cannotBeEmpty()
                         ->end()
-                        ->scalarNode( 'template' )
-                            ->defaultValue( 'PvrEzCommentBundle:mail:email.txt.twig' )
+                        ->scalarNode('template')
+                            ->defaultValue('PvrEzCommentBundle:mail:email.txt.twig')
                             ->cannotBeEmpty()
                         ->end()
                      ->end()
                 ->end()
-                ->arrayNode( 'dashboard' )
+                ->arrayNode('dashboard')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->integerNode( 'limit' )
+                        ->integerNode('limit')
                             ->min(1)->defaultValue(10)
                         ->end()
                     ->end()
