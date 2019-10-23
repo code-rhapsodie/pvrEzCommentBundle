@@ -68,11 +68,12 @@ class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
             return false;
         }
         $text = $value;
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-        $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-        $cryptText = mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $this->secretKey, $text, MCRYPT_MODE_ECB, $iv);
+        $method = 'AES-256-CBC';
+        $iv_size = openssl_cipher_iv_length($method);
+        $iv = openssl_random_pseudo_bytes($iv_size);
+        $cryptText = openssl_encrypt($text, $method,$this->secretKey, 0, $iv);
 
-        return trim($this->safeB64encode($cryptText));
+        return trim($this->safeB64encode($cryptText.$iv));
     }
 
     /**
@@ -85,10 +86,12 @@ class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
         if (!$value) {
             return false;
         }
-        $cryptText = $this->safeB64decode($value);
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-        $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-        $decryptText = mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $this->secretKey, $cryptText, MCRYPT_MODE_ECB, $iv);
+        $ciphertext_dec = $this->safeB64decode($value);;
+        $method = 'AES-256-CBC';
+        $iv_size = openssl_cipher_iv_length($method);
+        $iv = substr($ciphertext_dec, 0, $iv_size);
+        $cryptText = substr($ciphertext_dec, $iv_size);
+        $decryptText = openssl_decrypt($cryptText, $method, $this->secretKey, 0, $iv);
 
         return trim($decryptText);
     }
