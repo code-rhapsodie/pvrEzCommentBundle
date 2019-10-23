@@ -84,6 +84,7 @@ class Comment
      */
     public function addComments(int $contentId, Request $request)
     {
+        // TODO : This method 'Comment::addComments' must be refactored
         // Check if user is anonymous or not and generate correct form
         $isAnonymous = true;
 

@@ -73,7 +73,7 @@ class CommentController extends Controller
 
         $params += ['canComment' => $canComment];
 
-        $data = $this->commentService->getComments($request, $contentId, $locationId);
+        $data = $this->commentService->getComments($request, (int) $contentId);
         $data += array('params' => $params);
 
         $template = isset($params['template']) ? $params['template'] : 'PvrEzCommentBundle:blog:list_comments.html.twig';
@@ -91,6 +91,8 @@ class CommentController extends Controller
      */
     public function getFormCommentAction($contentId, $params = array())
     {
+        //TODO : Merge this function with the 'getCommentsAction'
+
         $form = $this->commentService->generateForm();
 
         $template = isset($params['template']) ? $params['template'] : 'PvrEzCommentBundle:blog:form_comments.html.twig';
@@ -116,7 +118,7 @@ class CommentController extends Controller
     public function addCommentAction(Request $request, $contentId)
     {
         if ($request->isXmlHttpRequest()) {
-            return $this->commentService->addComments($contentId, $request);
+            return $this->commentService->addComments((int) $contentId, $request);
         }
 
         return new Response(

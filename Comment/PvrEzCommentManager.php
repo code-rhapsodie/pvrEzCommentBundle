@@ -187,6 +187,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         $contentId = null,
         $sessionId = null
     ) {
+        // TODO : Refactor this method to accept anonymous comment.
         $languageCode = $localeService->convertToEz($request->getLocale());
 
         $created = $modified = \time();
@@ -229,6 +230,8 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         $contentId,
         $sessionId = null
     ) {
+        //TODO : This function must be merged with 'addComment'
+
         $languageCode = $localeService->convertToEz($request->getLocale());
         $languageId = $this->getLanguageId($languageCode);
 
