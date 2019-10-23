@@ -2,7 +2,6 @@
 'Comment publish !': 'Commento Pubblicato'
 'Comment rejected !': 'Commento Rifiutato'
 Comment(s): 'Commenti'
-'Connection is not a valid %ezdbhandler%': 'La connessione non è un valido %ezdbhandler%'
 'Could not be empty': 'Il campo non può essere vuoto'
 
 "Hello,\n\nA new comment is waiting your approbation:\n\nUser:\n    %name% - %email%\nComment:\n    %comment%\n\n\nApprove comment: %approve_url%\nReject comment: %reject_url%\n\nBest Regards,\nYour devoted server":

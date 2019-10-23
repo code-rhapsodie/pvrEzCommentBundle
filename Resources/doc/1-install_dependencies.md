@@ -13,6 +13,24 @@ If you use eZ Platform >=1.6 or eZ Studio > 1.6
 php composer.phar require --prefer-dist dspe/pvrezcommentbundle:~2.0
 ```
 
+## a) Enable the Bundle
+
+Enable the bundle in the EzpublishKernel:
+
+```php
+<?php
+// app/AppKernel.php
+
+public function registerBundles()
+{
+    $bundles = array(
+        // ...
+        new Gregwar\CaptchaBundle\GregwarCaptchaBundle(),
+        new pvr\EzCommentBundle\PvrEzCommentBundle(),
+    );
+}
+```
+
 ## b) Install SQL schema (optional if not an upgrade)
 
 You need to run this command line to install SQL Schema:

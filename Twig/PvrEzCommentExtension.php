@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 
 namespace pvr\EzCommentBundle\Twig;
 
@@ -32,64 +33,69 @@ class PvrEzCommentExtension extends \Twig_Extension
      */
     protected $translationHelper;
 
-    public function __construct( PvrEzCommentManager $commentManager, EzcDbHandler $handler,
+    public function __construct(PvrEzCommentManager $commentManager, EzcDbHandler $handler,
                                  ContentService $contentService, TranslationHelper $translationHelper,
-                                 LocationService $locationService )
+                                 LocationService $locationService)
     {
-        $this->commentManager    = $commentManager;
-        $this->contentService    = $contentService;
-        $this->handler           = $handler;
-        $this->locationService   = $locationService;
+        $this->commentManager = $commentManager;
+        $this->contentService = $contentService;
+        $this->handler = $handler;
+        $this->locationService = $locationService;
         $this->translationHelper = $translationHelper;
     }
 
     /**
-     * Create filters for Twig templates
+     * Create filters for Twig templates.
      *
      * @return array An array of filters
      */
     public function getFilters()
     {
         return array(
-            new \Twig_SimpleFilter( 'getCountComments', array($this, 'countCommentsFilter') ),
-            new \Twig_SimpleFilter( 'getContentName', array($this, 'getContentName') ),
-            new \Twig_SimpleFilter( 'getMainLocation', array($this, 'getMainLocation') ),
+            new \Twig_SimpleFilter('getCountComments', array($this, 'countCommentsFilter')),
+            new \Twig_SimpleFilter('getContentName', array($this, 'getContentName')),
+            new \Twig_SimpleFilter('getMainLocation', array($this, 'getMainLocation')),
         );
     }
 
     /**
-     * Get number of comments on a content
+     * Get number of comments on a content.
      *
      * @param $contentId
+     *
      * @return int
      */
-    public function countCommentsFilter( $contentId )
+    public function countCommentsFilter($contentId)
     {
-        return $this->commentManager->getCountComments( $contentId, $this->handler );
+        return $this->commentManager->getCountComments($contentId, $this->handler);
     }
 
     /**
-     * Get the content name
+     * Get the content name.
      *
      * @param $contentId
+     *
      * @return string
      */
-    public function getContentName( $contentId )
+    public function getContentName($contentId)
     {
-        $contentInfo = $this->contentService->loadContentInfo( $contentId );
-        return $this->translationHelper->getTranslatedContentNameByContentInfo( $contentInfo );
+        $contentInfo = $this->contentService->loadContentInfo($contentId);
+
+        return $this->translationHelper->getTranslatedContentNameByContentInfo($contentInfo);
     }
 
     /**
-     * Get the main location Id
+     * Get the main location Id.
      *
      * @param $contentId
+     *
      * @return \eZ\Publish\API\Repository\Values\Content\Location
      */
-    public function getMainLocation( $contentId )
+    public function getMainLocation($contentId)
     {
-        $mainLocationId = $this->contentService->loadContentInfo( $contentId )->mainLocationId;
-        return $this->locationService->loadLocation( $mainLocationId );
+        $mainLocationId = $this->contentService->loadContentInfo($contentId)->mainLocationId;
+
+        return $this->locationService->loadLocation($mainLocationId);
     }
 
     public function getName()

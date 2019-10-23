@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the pvrEzComment package.
  *
@@ -11,10 +13,9 @@
 
 namespace pvr\EzCommentBundle\Comment;
 
-use pvr\EzCommentBundle\Comment\PvrEzCommentEncryptionInterface;
-
 class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
 {
+    const METHOD = 'AES-256-CBC';
     /**
      * @var Contains the secret key
      */
@@ -23,70 +24,74 @@ class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
     /**
      * @param $secret
      */
-    public function __construct( $secret )
+    public function __construct($secret)
     {
-        $this->secretKey = substr( $secret, 0, 32 );
+        $this->secretKey = substr($secret, 0, 32);
     }
 
     /**
      * @param $string
+     *
      * @return mixed
      */
-    protected function safeB64encode( $string )
+    protected function safeB64encode($string)
     {
-        $data = base64_encode( $string );
-        $data = str_replace( array( '+', '/', '=' ), array( '-', '_', '' ), $data );
+        $data = base64_encode($string);
+        $data = str_replace(array('+', '/', '='), array('-', '_', ''), $data);
+
         return $data;
     }
 
     /**
      * @param $string
+     *
      * @return string
      */
-    protected function safeB64decode( $string )
+    protected function safeB64decode($string)
     {
-        $data = str_replace( array( '-', '_' ), array( '+', '/' ), $string );
-        $mod4 = strlen( $data ) % 4;
-        if ( $mod4 )
-        {
-            $data .= substr( '====', $mod4 );
+        $data = str_replace(array('-', '_'), array('+', '/'), $string);
+        $mod4 = strlen($data) % 4;
+        if ($mod4) {
+            $data .= substr('====', $mod4);
         }
-        return base64_decode( $data );
+
+        return base64_decode($data);
     }
 
     /**
      * @param $value        string to encode
-     * @return bool|string  return crypt code or false
+     *
+     * @return bool|string return crypt code or false
      */
-    public function encode( $value )
+    public function encode($value)
     {
-        if ( !$value )
-        {
+        if (!$value) {
             return false;
         }
         $text = $value;
-        $iv_size = mcrypt_get_iv_size( MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB );
-        $iv = mcrypt_create_iv( $iv_size, MCRYPT_RAND );
-        $cryptText = mcrypt_encrypt( MCRYPT_RIJNDAEL_256, $this->secretKey, $text, MCRYPT_MODE_ECB, $iv );
+        $iv_size = openssl_cipher_iv_length(self::METHOD);
+        $iv = openssl_random_pseudo_bytes($iv_size);
+        $cryptText = openssl_encrypt($text, self::METHOD, $this->secretKey, 0, $iv);
 
-        return trim( $this->safeB64encode( $cryptText ) );
+        return trim($this->safeB64encode($cryptText.$iv));
     }
 
     /**
      * @param $value        string to decode
-     * @return bool|string  return decrypted code or false
+     *
+     * @return bool|string return decrypted code or false
      */
-    public function decode( $value )
+    public function decode($value)
     {
-        if ( !$value )
-        {
+        if (!$value) {
             return false;
         }
-        $cryptText = $this->safeB64decode( $value );
-        $iv_size = mcrypt_get_iv_size( MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB );
-        $iv = mcrypt_create_iv( $iv_size, MCRYPT_RAND );
-        $decryptText = mcrypt_decrypt( MCRYPT_RIJNDAEL_256, $this->secretKey, $cryptText, MCRYPT_MODE_ECB, $iv );
+        $ciphertext_dec = $this->safeB64decode($value);
+        $iv_size = openssl_cipher_iv_length(self::METHOD);
+        $iv = substr($ciphertext_dec, 0, $iv_size);
+        $cryptText = substr($ciphertext_dec, $iv_size);
+        $decryptText = openssl_decrypt($cryptText, self::METHOD, $this->secretKey, 0, $iv);
 
-        return trim( $decryptText );
+        return trim($decryptText);
     }
 }

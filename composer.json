@@ -1,20 +1,28 @@
 {
-    "name": "dspe/pvrezcommentbundle",
+    "name": "code-rhapsodie/pvrezcommentbundle",
     "description": "pvr EzComemnt Bundle",
-    "keywords": ["symfony2", "comment", "pvr", "ezpublish" ],
-    "homepage": "https://github.com/dspe/pvrEzCommentBundle",
+    "keywords": ["symfony3", "comment", "ezpublish", "ez platform" ],
+    "homepage": "https://github.com/code-rhapsodie/pvrEzCommentBundle",
     "license": "MIT",
     "authors": [
         {
             "name": "Philippe Vincent-Royol",
-            "homepage": "http://www.pheelit.fr/"
+            "homepage": "http://www.pheelit.fr/",
+            "role": "author"
+        },
+        {
+            "name": "Jean-Baptiste Nahan",
+            "email": "jean-baptiste@code-rhapsodie.fr",
+            "role": "maintainer"
         }
     ],
     "minimum-stability": "dev",
     "prefer-stable": true,
     "require": {
-        "php": ">=5.4",
-        "ezsystems/ezpublish-kernel": ">=6.6.0",
+        "php": ">=7.1",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "ezsystems/ezpublish-kernel": ">=7.0.0",
         "gregwar/captcha-bundle": "^2.0"
     },
     "autoload": {

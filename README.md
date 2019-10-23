@@ -15,6 +15,33 @@ All the installation instructions are located in [documentation](Resources/doc/i
 
 ### Upgrade
 
+## v2.0 to v3.0
+
+`Comment/PvrEzCommentManagerInterface` has changed. All database type arguments have been removed from the functions arguments.
+
+Affected function list:
+
+* getComments
+* addComment
+* addAnonymousComment
+* canUpdate
+* updateStatus
+* getCountComments
+
+Before
+
+```php
+$manager->getComments($database, $contentId);
+```
+
+After
+
+```php
+$manager->getComments($contentId);
+```
+
+## v0.1 to v0.2
+
 If you have already installed v0.1, upgrading to v0.2 introduce some changes: ```pvrEzCommentBundle``` has change name to
 ```PvrEzCommentBundle``` in order to validate PSR-0 rule.
 

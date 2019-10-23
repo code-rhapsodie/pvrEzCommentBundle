@@ -1,8 +1,7 @@
 'An unexpected error has occurred, please contact the webmaster !': 'Une erreur inattendue s''est produite, merci de contacter l''administrateur !'
 'Comment publish !': 'Commentaire publié !'
-'Comment rejected !': 'Commentaire rejecté !'
+'Comment rejected !': 'Commentaire rejeté !'
 Comment(s): Commentaire(s)
-'Connection is not a valid %ezdbhandler%': 'La connection n''est pas un object %ezdbhandler%'
 'Could not be empty': 'Ne peut être vide'
 
 "Hello,\n\nA new comment is waiting your approbation:\n\nUser:\n    %name% - %email%\nComment:\n    %comment%\n\n\nApprove comment: %approve_url%\nReject comment: %reject_url%\n\nBest Regards,\nYour devoted server":
@@ -17,3 +16,4 @@ captcha: captcha
 email: email
 message: message
 name: nom
+'Current user doesn''t have access to post a comment !': 'L''utilisateur courant ne peut pas poster de commentaire'

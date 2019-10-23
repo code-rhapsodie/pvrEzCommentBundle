@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace pvr\EzCommentBundle;
 
 use pvr\EzCommentBundle\Security\CommentProvider;

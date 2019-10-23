@@ -1,17 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace pvr\EzCommentBundle\Installer;
 
-use EzSystems\PlatformInstallerBundle\Installer\CleanInstaller;
+use EzSystems\PlatformInstallerBundle\Installer\CoreInstaller;
 
-class CommentInstaller extends CleanInstaller
+class CommentInstaller extends CoreInstaller
 {
     public function importSchema()
     {
         parent::importSchema();
 
         $this->runQueriesFromFile(
-            __DIR__ . '/../Resources/installer/sql/schema.sql'
+            __DIR__.'/../Resources/installer/sql/schema.sql'
         );
     }
 }
