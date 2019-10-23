@@ -15,6 +15,7 @@ namespace pvr\EzCommentBundle\Comment;
 
 class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
 {
+    const METHOD = 'AES-256-CBC';
     /**
      * @var Contains the secret key
      */
@@ -68,10 +69,9 @@ class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
             return false;
         }
         $text = $value;
-        $method = 'AES-256-CBC';
-        $iv_size = openssl_cipher_iv_length($method);
+        $iv_size = openssl_cipher_iv_length(self::METHOD);
         $iv = openssl_random_pseudo_bytes($iv_size);
-        $cryptText = openssl_encrypt($text, $method,$this->secretKey, 0, $iv);
+        $cryptText = openssl_encrypt($text, self::METHOD, $this->secretKey, 0, $iv);
 
         return trim($this->safeB64encode($cryptText.$iv));
     }
@@ -86,12 +86,11 @@ class PvrEzCommentEncryption implements pvrEzCommentEncryptionInterface
         if (!$value) {
             return false;
         }
-        $ciphertext_dec = $this->safeB64decode($value);;
-        $method = 'AES-256-CBC';
-        $iv_size = openssl_cipher_iv_length($method);
+        $ciphertext_dec = $this->safeB64decode($value);
+        $iv_size = openssl_cipher_iv_length(self::METHOD);
         $iv = substr($ciphertext_dec, 0, $iv_size);
         $cryptText = substr($ciphertext_dec, $iv_size);
-        $decryptText = openssl_decrypt($cryptText, $method, $this->secretKey, 0, $iv);
+        $decryptText = openssl_decrypt($cryptText, self::METHOD, $this->secretKey, 0, $iv);
 
         return trim($decryptText);
     }
