@@ -13,11 +13,42 @@ namespace pvr\EzCommentBundle\Controller;
 
 use eZ\Bundle\EzPublishCoreBundle\Controller;
 use eZ\Publish\Core\Repository\Permission\PermissionResolver;
+use pvr\EzCommentBundle\Comment\PvrEzCommentManager;
+use pvr\EzCommentBundle\Service\Comment;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Translation\TranslatorInterface;
 
 class CommentController extends Controller
 {
+    /**
+     * @var Comment
+     */
+    private $commentService;
+
+    /**
+     * @var PvrEzCommentManager
+     */
+    private $commentManager;
+
+    /**
+     * @var TranslatorInterface
+     */
+    private $translator;
+
+    /**
+     * @var int
+     */
+    private $maxAge;
+
+    public function __construct(Comment $commentService, PvrEzCommentManager $commentManager, TranslatorInterface $translator, int $maxAge)
+    {
+        $this->commentService = $commentService;
+        $this->commentManager = $commentManager;
+        $this->translator = $translator;
+        $this->maxAge = $maxAge;
+    }
+
     /**
      * List comments from a certain contentId
      *
@@ -26,10 +57,10 @@ class CommentController extends Controller
      * @param array $params
      * @return Response
      */
-    public function getCommentsAction( $contentId, $locationId, $params = array() )
+    public function getCommentsAction(Request $request , $contentId, $locationId, $params = array() )
     {
         $response = new Response();
-        $response->setMaxAge( $this->container->getParameter( 'pvr_ezcomment.maxage' ) );
+        $response->setMaxAge( $this->maxAge );
         $response->headers->set( 'X-Location-Id', $locationId );
 
         $repository = $this->container->get('ezpublish.api.repository');
@@ -40,7 +71,7 @@ class CommentController extends Controller
 
         $params += [ 'canComment' => $canComment ];
 
-        $data = $this->container->get( 'pvr_ezcomment.service' )->getComments( $contentId, $locationId );
+        $data = $this->commentService->getComments($request ,$contentId, $locationId);
         $data += array( 'params' => $params );
 
         $template = isset( $params['template'] ) ? $params['template'] : 'PvrEzCommentBundle:blog:list_comments.html.twig';
@@ -57,7 +88,7 @@ class CommentController extends Controller
      */
     public function getFormCommentAction( $contentId, $params = array() )
     {
-        $form = $this->container->get( 'pvr_ezcomment.service' )->generateForm();
+        $form = $this->commentService->generateForm();
 
         $template = isset( $params['template'] ) ? $params['template'] : 'PvrEzCommentBundle:blog:form_comments.html.twig';
 
@@ -81,7 +112,7 @@ class CommentController extends Controller
     public function addCommentAction( Request $request, $contentId )
     {
         if ( $request->isXmlHttpRequest() ) {
-            return $this->container->get( 'pvr_ezcomment.service' )->addComments( $contentId );
+            return $this->commentService->addComments( $contentId, $request);
         }
         return new Response(
             $this->container->get( 'translator' )->trans( 'Something goes wrong !' ), 400
@@ -94,42 +125,42 @@ class CommentController extends Controller
      * @param $contentId id of content
      * @param $sessionHash hash session do decrypt for transaction
      * @param $action approve|reject value
+     * @param $commentId
      * @return Response
      */
     public function commentModerateAction( $contentId, $sessionHash, $action, $commentId )
     {
-        $pvrEzCommentManager = $this->container->get( 'pvr_ezcomment.manager' );
         $connection = $this->container->get( 'ezpublish.connection' );
 
         // Check if comment has waiting status..
-        $canUpdate = $pvrEzCommentManager->canUpdate( $contentId, $sessionHash, $connection, $commentId );
+        $canUpdate = $this->commentManager->canUpdate( $contentId, $sessionHash, $connection, $commentId );
 
         if ( $canUpdate )
         {
             if ( $action == "approve" )
             {
                 // Update status
-                if ( $pvrEzCommentManager->updateStatus( $connection, $commentId ) )
+                if ( $this->commentManager->updateStatus( $connection, $commentId ) )
                 {
                     return new Response(
-                        $this->container->get( 'translator' )->trans( "Comment publish !" )
+                        $this->translator->trans( "Comment publish !" )
                     );
                 }
             }
             else
             {
                 // Update status
-                if ( $pvrEzCommentManager->updateStatus( $connection, $commentId, $pvrEzCommentManager::COMMENT_REJECTED ) )
+                if ( $this->commentManager->updateStatus( $connection, $commentId, $this->commentManager::COMMENT_REJECTED ) )
                 {
                     return new Response(
-                        $this->container->get( 'translator' )->trans( "Comment rejected !" )
+                        $this->translator->trans( "Comment rejected !" )
                     );
                 }
             }
 
         }
         return new Response(
-            $this->container->get( 'translator' )
+            $this->translator
                 ->trans( "An unexpected error has occurred, please contact the webmaster !" ),
             406
         );

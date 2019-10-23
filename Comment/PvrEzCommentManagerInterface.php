@@ -11,28 +11,22 @@
 
 namespace pvr\EzCommentBundle\Comment;
 
-use eZ\Publish\Core\MVC\Symfony\Routing\ChainRouter;
-use eZ\Publish\Core\Persistence\Legacy\EzcDbHandler;
-use eZ\Publish\Core\Repository\Values\User\User as EzUser;
 use eZ\Publish\Core\MVC\Symfony\Locale\LocaleConverter;
-use Symfony\Component\HttpFoundation\Request;
+use eZ\Publish\Core\Repository\Values\User\User as EzUser;
 use Symfony\Component\Form\Form;
+use Symfony\Component\HttpFoundation\Request;
 
 interface PvrEzCommentManagerInterface
 {
-    public function __construct( $config, \Swift_Mailer $mailer, PvrEzCommentEncryption $encryption, ChainRouter $route  );
-
     /**
-     * @param $connection Get connection to eZ Publish Database
-     * @param $contentId Get content Id to fetch comments
+     * @param int $contentId Get content Id to fetch comments
+     * @param array $viewParameters
      * @param int $status
      * @return mixed Array or false
-     * @throws \Exception
      */
-    public function getComments( $connection, $contentId, $viewParameters = array(), $status = self::COMMENT_ACCEPT );
+    public function getComments(int $contentId, array $viewParameters = array(), int $status = self::COMMENT_ACCEPT);
 
     /**
-     * @param $connection
      * @param Request $request
      * @param EzUser $currentUser
      * @param LocaleConverter $localeService
@@ -40,11 +34,20 @@ interface PvrEzCommentManagerInterface
      * @param null $contentId
      * @throws \InvalidArgumentException
      */
-    public function addComment( $connection, Request $request, EzUser $currentUser,
-                                LocaleConverter $localeService, $data = array(), $contentId = null );
+    public function addComment(
+        Request $request,
+        EzUser $currentUser,
+        LocaleConverter $localeService,
+        $data = array(),
+        $contentId = null
+    );
 
-    public function addAnonymousComment( $connection, Request $request, LocaleConverter $localeService,
-                                         array $data, $contentId );
+    public function addAnonymousComment(
+        Request $request,
+        LocaleConverter $localeService,
+        array $data,
+        $contentId
+    );
 
     public function createAnonymousForm();
 
@@ -56,18 +59,18 @@ interface PvrEzCommentManagerInterface
      * @param \Symfony\Component\Form\Form $form the form
      * @return array errors messages
      */
-    public function getErrorMessages( Form $form );
+    public function getErrorMessages(Form $form);
 
     /**
      * Send message to admin(s)
      */
-    public function sendMessage( $data, $user, $contentId, $sessionId, $commentId );
+    public function sendMessage($data, $user, $contentId, $sessionId, $commentId);
 
-    public function canUpdate( $contentId, $sessionHash, $connection, $commentId );
+    public function canUpdate($contentId, $sessionHash, $commentId);
 
-    public function updateStatus( $connection, $commentId, $status = self::COMMENT_ACCEPT );
+    public function updateStatus($commentId, $status = self::COMMENT_ACCEPT);
 
-    public function getCountComments( $contentId, EzcDbHandler $handler );
+    public function getCountComments($contentId);
 
     /**
      * @return bool

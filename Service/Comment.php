@@ -5,36 +5,39 @@ namespace pvr\EzCommentBundle\Service;
 use eZ\Publish\API\Repository\Repository;
 use eZ\Publish\Core\MVC\Symfony\Locale\LocaleConverter;
 use pvr\EzCommentBundle\Comment\PvrEzCommentManager;
-use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Security\Core\SecurityContext;
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Translation\TranslatorInterface;
 
 
 class Comment
 {
-    protected $requestStack;
-    protected $contentManager;
+    protected $commentManager;
     protected $connection;
     protected $locale;
     protected $translator;
     protected $repository;
+    /**
+     * @var AuthorizationCheckerInterface
+     */
     protected $security;
 
     /**
-     * @param PvrEzCommentManager $contentManager
+     * @param PvrEzCommentManager $commentManager
      * @param $connection
      * @param LocaleConverter $locale
      * @param TranslatorInterface $translator
      * @param Repository $repository
      */
     public function __construct(
-        PvrEzCommentManager $contentManager, $connection,
-        LocaleConverter $locale, TranslatorInterface $translator,
+        PvrEzCommentManager $commentManager,
+        $connection,
+        LocaleConverter $locale,
+        TranslatorInterface $translator,
         Repository $repository
-    )
-    {
-        $this->contentManager = $contentManager;
+    ) {
+        $this->commentManager = $commentManager;
         $this->connection = $connection;
         $this->locale = $locale;
         $this->translator = $translator;
@@ -42,112 +45,104 @@ class Comment
     }
 
     /**
-     * RequestStack Dependency Injection
-     * @param RequestStack $request
-     */
-    public function setRequest( RequestStack $request )
-    {
-        $this->requestStack = $request;
-    }
-
-    /**
      * SecurityContext Dependency Injection
-     * @param SecurityContext $security
+     * @param AuthorizationCheckerInterface $security
      */
-    public function setSecurity( SecurityContext $security )
+    public function setSecurity(AuthorizationCheckerInterface $security)
     {
         $this->security = $security;
     }
 
     /**
      * Fetch contents from a content Id
+     * @param Request $request
      * @param integer $contentId
      * @return array
      */
-    public function getComments( $contentId )
+    public function getComments(Request $request, int $contentId)
     {
-        $viewParameters = $this->requestStack->getCurrentRequest()->attributes->get( 'viewParameters' );
-        $comments = $this->contentManager->getComments( $this->connection, $contentId, $viewParameters );
+        $viewParameters = $request->attributes->get('viewParameters');
+        $comments = $this->commentManager->getComments($contentId, $viewParameters);
 
         return
             array(
-                'comments'  => $comments,
+                'comments' => $comments,
                 'contentId' => $contentId,
-                'reply'     => $this->contentManager->canReply(),
-
+                'reply' => $this->commentManager->canReply(),
             );
     }
 
     /**
-     * @param $contentId
+     * @param int $contentId
+     * @param Request $request
      * @return Response return a json message
      */
-    public function addComments( $contentId )
+    public function addComments(int $contentId, Request $request)
     {
         // Check if user is anonymous or not and generate correct form
-        $isAnonymous = false;
-        if ( $this->contentManager->hasAnonymousAccess() ) {
-            $form = $this->contentManager->createAnonymousForm();
-            $isAnonymous = true;
-        } else {
-            $form = $this->contentManager->createUserForm();
+        $isAnonymous = true;
+
+        if ($this->commentManager->hasAnonymousAccess()) {
+            $form = $this->commentManager->createAnonymousForm();
+        }
+        if ($this->security->isGranted('IS_AUTHENTICATED_FULLY')) {
+            $isAnonymous = false;
+            $form = $this->commentManager->createUserForm();
         }
 
-        $form->bind( $this->requestStack->getCurrentRequest() );
-        if ( $form->isValid() ) {
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
 
+            $currentUser = null;
             // Save data depending of user (anonymous or ezuser)
-            if ( $isAnonymous ) {
-                $commentId = $this->contentManager->addAnonymousComment(
-                    $this->connection,
-                    $this->requestStack->getCurrentRequest(),
+            if ($isAnonymous) {
+                $commentId = $this->commentManager->addAnonymousComment(
+                    $request,
                     $this->locale,
                     $form->getData(),
                     $contentId,
-                    $this->requestStack->getCurrentRequest()->getSession()->getId()
+                    $request->getSession()->getId()
                 );
             } else {
                 $currentUser = $this->repository->getCurrentUser();
 
-                $commentId = $this->contentManager->addComment(
-                    $this->connection,
-                    $this->requestStack->getCurrentRequest(),
+                $commentId = $this->commentManager->addComment(
+                    $request,
                     $currentUser,
                     $this->locale,
                     $form->getData(),
                     $contentId,
-                    $this->requestStack->getCurrentRequest()->getSession()->getId()
+                    $request->getSession()->getId()
                 );
             }
 
             // Check if you need to moderate comment or not
-            if ( $this->contentManager->hasModeration() ) {
-                if (!isset( $currentUser )) $currentUser = null;
-
-                $this->contentManager->sendMessage(
+            if ($this->commentManager->hasModeration()) {
+                $this->commentManager->sendMessage(
                     $form->getData(),
                     $currentUser,
                     $contentId,
-                    $this->requestStack->getCurrentRequest()->getSession()->getId(),
+                    $request->getSession()->getId(),
                     $commentId
                 );
-                $response = new Response(
-                    $this->translator->trans( 'Your comment should be moderate before publishing' )
+                return new Response(
+                    $this->translator->trans('Your comment should be moderate before publishing')
                 );
-                return $response;
-            } else {
-                $response = new Response(
-                    $this->translator->trans( 'Your comment has been added correctly' )
-                );
-                return $response;
-            }
-        } else {
-            $errors = $this->contentManager->getErrorMessages( $form );
 
-            $response = new Response( json_encode( $errors ), 406 );
-            $response->headers->set( 'Content-Type', 'application/json' );
-            return $response;
+            }
+            return new Response(
+                $this->translator->trans('Your comment has been added correctly')
+            );
+
+
         }
+
+        $errors = $this->commentManager->getErrorMessages($form);
+
+        $response = new Response(json_encode($errors), 406);
+        $response->headers->set('Content-Type', 'application/json');
+        return $response;
+
     }
 
     /**
@@ -155,25 +150,17 @@ class Comment
      */
     public function generateForm()
     {
+        $form = null;
+
         // Case: configuration set to anonymous
-        if ( $this->contentManager->hasAnonymousAccess() ) {
-            // if user is connected
-            if( $this->security->isGranted('IS_AUTHENTICATED_FULLY') ) {
-                $form = $this->contentManager->createUserForm();
-            } else {
-                // else
-                $form = $this->contentManager->createAnonymousForm();
-            }
+        if ($this->commentManager->hasAnonymousAccess()) {
+            $form = $this->commentManager->createAnonymousForm();
         }
-        // Case: Configuration set to connected user
-        else {
-            // If user has right to add comment
-            if ( $this->repository->hasAccess( 'comment', 'add' ) ) {
-                $form = $this->contentManager->createUserForm();
-            } else {
-                $form = null;
-            }
+
+        if ($this->security->isGranted('IS_AUTHENTICATED_FULLY')) {
+            $form = $this->commentManager->createUserForm();
         }
+
         return $form;
     }
 }

@@ -28,30 +28,6 @@ class PvrEzCommentExtension extends Extension implements PrependExtensionInterfa
         $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.yml');
 
-        $config = array_merge(
-            array(
-                'anonymous' => false,
-                'moderating' => false,
-                'comment_reply' => true,
-                'moderate_mail' => array(
-                    'subject' => "Notify mail",
-                    'from' => "no-reply@example.com",
-                    'to' => "me@example.com",
-                    'template' => "PvrEzCommentBundle:mail:email_moderate.txt.twig"
-                ),
-                'notify_mail' => array(
-                    'enabled' => false,
-                    'subject' => "Notify mail",
-                    'from' => "noreply@example.com",
-                    'template' => "pvrEzCommentbundle:mail:email.txt.twig"
-                ),
-                'dashboard' => array(
-                    'limit' => 10
-                ),
-            ),
-            $config
-        );
-
         $container->setParameter( 'pvr_ezcomment.config',  array(
             "anonymous"         => $config['anonymous'],
             "moderating"        => $config['moderating'],

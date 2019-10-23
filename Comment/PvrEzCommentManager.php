@@ -11,26 +11,24 @@
 
 namespace pvr\EzCommentBundle\Comment;
 
-use eZ\Publish\Core\MVC\Symfony\Routing\ChainRouter;
-use eZ\Publish\Core\Persistence\Database\DatabaseHandler;
-use eZ\Publish\Core\Persistence\Legacy\EzcDbHandler;
-use eZ\Publish\Core\Repository\Values\User\User as EzUser;
+use Doctrine\DBAL\Connection;
 use eZ\Publish\Core\MVC\Symfony\Locale\LocaleConverter;
+use eZ\Publish\Core\MVC\Symfony\Routing\ChainRouter;
+use eZ\Publish\Core\Repository\Values\User\User as EzUser;
 use eZ\Publish\Core\REST\Common\Exceptions\NotFoundException;
+use pvr\EzCommentBundle\Form\AnonymousCommentType;
+use pvr\EzCommentBundle\Form\ConnectedCommentType;
+use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Translation\TranslatorInterface;
-use Symfony\Component\Validator\Constraints\Email;
-use Symfony\Component\Validator\Constraints\NotBlank;
-use Symfony\Component\Validator\Constraints\Collection;
-use Symfony\Component\Form\Form;
 
 class PvrEzCommentManager implements PvrEzCommentManagerInterface
 {
-    const COMMENT_WAITING   = 0;
-    const COMMENT_ACCEPT    = 1;
-    const COMMENT_REJECTED  = 2;
-    const ANONYMOUS_USER    = 10;
+    const COMMENT_WAITING = 0;
+    const COMMENT_ACCEPT = 1;
+    const COMMENT_REJECTED = 2;
+    const ANONYMOUS_USER = 10;
 
     protected $anonymous_access;
     protected $moderating;
@@ -48,26 +46,33 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     protected $mailer;
     protected $encryption;
     protected $router;
+    protected $connection;
 
-    public function __construct( $config, \Swift_Mailer $mailer, PvrEzCommentEncryption $encryption, ChainRouter $route )
-    {
-        $this->anonymous_access     = $config["anonymous"];
-        $this->moderating           = $config["moderating"];
-        $this->comment_reply        = $config["comment_reply"];
-        $this->moderate_subject     = $config["moderate_subject"];
-        $this->moderate_from        = $config["moderate_from"];
-        $this->moderate_to          = $config["moderate_to"];
-        $this->moderate_template    = $config["moderate_template"];
-        $this->isNotify             = $config["notify_enabled"];
-        $this->mailer               = $mailer;
-        $this->encryption           = $encryption;
-        $this->router               = $route;
+    public function __construct(
+        $config,
+        \Swift_Mailer $mailer,
+        PvrEzCommentEncryption $encryption,
+        ChainRouter $route,
+        Connection $connection
+    ) {
+        $this->anonymous_access = $config["anonymous"];
+        $this->moderating = $config["moderating"];
+        $this->comment_reply = $config["comment_reply"];
+        $this->moderate_subject = $config["moderate_subject"];
+        $this->moderate_from = $config["moderate_from"];
+        $this->moderate_to = $config["moderate_to"];
+        $this->moderate_template = $config["moderate_template"];
+        $this->isNotify = $config["notify_enabled"];
+        $this->mailer = $mailer;
+        $this->encryption = $encryption;
+        $this->router = $route;
+        $this->connection = $connection;
     }
 
     /**
      * @param TranslatorInterface $translator
      */
-    public function setTranslator( TranslatorInterface $translator )
+    public function setTranslator(TranslatorInterface $translator)
     {
         $this->translator = $translator;
     }
@@ -75,133 +80,96 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * @param FormFactory $form
      */
-    public function setFormFactory( FormFactory $form )
+    public function setFormFactory(FormFactory $form)
     {
         $this->formFactory = $form;
     }
 
-    public function setTwig( \Twig_Environment $twig )
+    public function setTwig(\Twig_Environment $twig)
     {
         $this->twig = $twig;
     }
 
     /**
-     * Check if connection is an instance of EzcDbHandler
-     *
-     * @param $connection
-     * @throws \InvalidArgumentException
-     */
-    protected function checkConnection ( $connection )
-    {
-        if ( !( $connection instanceof EzcDbHandler ) )
-        {
-            throw new \InvalidArgumentException(
-                $this->translator->trans( 'Connection is not a valid %ezdbhandler%',
-                    array( '%ezdbhandler%' => 'eZ\\Publish\\Core\\Persistence\\Legacy\\EzcDbHandler' )
-                )
-            );
-        }
-    }
-
-    /**
      * Get list of comments depending of contentId and status
      *
-     * @param $connection Get connection to eZ Publish Database
-     * @param $contentId Get content Id to fetch comments
+     * @param int $contentId Get content Id to fetch comments
      * @param array $viewParameters
      * @param int $status
      * @return mixed Array or false
      */
-    public function getComments( $connection, $contentId, $viewParameters = array(), $status = self::COMMENT_ACCEPT )
+    public function getComments(int $contentId, array $viewParameters = array(), int $status = self::COMMENT_ACCEPT)
     {
-        $this->checkConnection( $connection );
-        /** @var \eZ\Publish\Core\Persistence\Database\SelectQuery $selectQuery */
-        $selectQuery = $connection->createSelectQuery();
+        $selectQuery = $this->connection->createQueryBuilder();
 
         $column = "created";
-        $sort   = $selectQuery::DESC;
+        $sort = 'DESC';
 
         // Configure how to sort things
-        if ( !empty( $viewParameters ) )
-        {
-            if ( $viewParameters['cSort'] == "author" )
+        if (!empty($viewParameters)) {
+            if ($viewParameters['cSort'] == "author") {
                 $column = "name";
-            if ( $viewParameters['cOrder'] == 'asc' )
-                $sort = $selectQuery::ASC;
+            }
+            if ($viewParameters['cOrder'] == 'asc') {
+                $sort = 'ASC';
+            }
         }
 
         //Get Parents Comments
-        $selectQuery->select(
-            $connection->quoteColumn( 'id' ),
-            $connection->quoteColumn( 'created' ),
-            $connection->quoteColumn( 'user_id' ),
-            $connection->quoteColumn( 'name' ),
-            $connection->quoteColumn( 'email' ),
-            $connection->quoteColumn( 'url' ),
-            $connection->quoteColumn( 'text' ),
-            $connection->quoteColumn( 'title' ),
-            $connection->quoteColumn( 'parent_comment_id' )
-        )->from(
-                $connection->quoteTable( 'ezcomment' )
-            )->where(
-                $selectQuery->expr->lAnd(
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'contentobject_id' ),
-                        $selectQuery->bindValue( $contentId, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'status' ),
-                        $selectQuery->bindValue( $status, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'parent_comment_id' ),
-                        $selectQuery->bindValue( 0, null, \PDO::PARAM_INT )
-                    )
+        $selectQuery
+            ->select('id', 'created', 'user_id', 'name', 'email', 'url', 'text', 'title', 'parent_comment_id')
+            ->from('ezcomment')
+            ->where(
+                $selectQuery->expr()->eq(
+                    'contentobject_id',
+                    $selectQuery->createNamedParameter($contentId, \PDO::PARAM_INT)
                 )
-            )->orderBy( $column, $sort );
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+            )->andWhere(
+                $selectQuery->expr()->eq(
+                    'status',
+                    $selectQuery->createNamedParameter($status, \PDO::PARAM_INT)
+                )
+            )->andWhere(
+                $selectQuery->expr()->eq(
+                    'parent_comment_id',
+                    $selectQuery->createNamedParameter(0, \PDO::PARAM_INT)
+                )
+            )->orderBy($column, $sort);
+        $statement = $selectQuery->execute();
 
-        $comments = $statement->fetchAll( \PDO::FETCH_ASSOC );
-        if($this->comment_reply) {
+
+        $comments = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        if ($this->comment_reply) {
             //Get Childs Comments
-            $selectQuery = $connection->createSelectQuery();
-            $selectQuery->select(
-                $connection->quoteColumn( 'id' ),
-                $connection->quoteColumn( 'created' ),
-                $connection->quoteColumn( 'user_id' ),
-                $connection->quoteColumn( 'name' ),
-                $connection->quoteColumn( 'email' ),
-                $connection->quoteColumn( 'url' ),
-                $connection->quoteColumn( 'text' ),
-                $connection->quoteColumn( 'title' ),
-                $connection->quoteColumn( 'parent_comment_id' )
-            )->from(
-                $connection->quoteTable( 'ezcomment' )
-            )->where(
-                $selectQuery->expr->lAnd(
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'contentobject_id' ),
-                        $selectQuery->bindValue( $contentId, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'status' ),
-                        $selectQuery->bindValue( $status, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->neq(
-                        $connection->quoteColumn( 'parent_comment_id' ),
-                        $selectQuery->bindValue( 0, null, \PDO::PARAM_INT )
+            $selectQuery = $this->connection->createQueryBuilder();
+            $selectQuery->select('id', 'created', 'user_id', 'name', 'email', 'url', 'text', 'title',
+                'parent_comment_id')
+                ->from('ezcomment')
+                ->where(
+                    $selectQuery->expr()->eq(
+                        'contentobject_id',
+                        $selectQuery->createNamedParameter($contentId, \PDO::PARAM_INT)
+                    )
+                )->andWhere(
+                    $selectQuery->expr()->eq(
+                        'status',
+                        $selectQuery->createNamedParameter($status, \PDO::PARAM_INT)
+                    )
+                )->andWhere(
+                    $selectQuery->expr()->neq(
+                        'parent_comment_id',
+                        $selectQuery->createNamedParameter(0, \PDO::PARAM_INT)
                     )
                 )
-            )->orderBy( $column, $sort );
-            $statement = $selectQuery->prepare();
-            $statement->execute();
+                ->orderBy($column, $sort);
+            $statement = $selectQuery->execute();
 
-            $childs = $statement->fetchAll( \PDO::FETCH_ASSOC );
 
-            for($i=0; $i < count($comments); $i++) {
-                for($j=0; $j < count($childs); $j++) {
-                    if($comments[$i]['id'] == $childs[$j]['parent_comment_id']){
+            $childs = $statement->fetchAll(\PDO::FETCH_ASSOC);
+
+            for ($i = 0; $i < count($comments); $i++) {
+                for ($j = 0; $j < count($childs); $j++) {
+                    if ($comments[$i]['id'] == $childs[$j]['parent_comment_id']) {
                         $comments[$i]['children'][] = $childs[$j];
                     }
                 }
@@ -213,7 +181,6 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * Add a comment via an ezuser
      *
-     * @param $connection
      * @param Request $request
      * @param EzUser $currentUser
      * @param LocaleConverter $localeService
@@ -221,91 +188,92 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      * @param null $contentId
      * @param null $sessionId
      */
-    public function addComment( $connection, Request $request,
-                                EzUser $currentUser, LocaleConverter $localeService,
-                                $data = array(), $contentId = null, $sessionId = null )
-    {
-        $this->checkConnection( $connection );
+    public function addComment(
+        Request $request,
+        EzUser $currentUser,
+        LocaleConverter $localeService,
+        $data = array(),
+        $contentId = null,
+        $sessionId = null
+    ) {
 
-        $languageCode = $localeService->convertToEz( $request->getLocale() );
+        $languageCode = $localeService->convertToEz($request->getLocale());
 
-        $created            = $modified = \Time();
-        $status             = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
-        $parentCommentId    = $data[ $this->translator->trans( 'parent_comment_id' )];
-        $selectQuery        = $connection->createInsertQuery();
+        $created = $modified = \Time();
+        $status = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
+        $parentCommentId = $data['parent_comment_id'];
 
-        $selectQuery->insertInto( 'ezcomment' )
-            ->set( 'language_id',       $selectQuery->bindValue( $this->getLanguageId( $connection, $languageCode ) ))
-            ->set( 'created',           $selectQuery->bindValue( $created ))
-            ->set( 'modified',          $selectQuery->bindValue( $modified ))
-            ->set( 'user_id',           $selectQuery->bindValue( $currentUser->versionInfo->contentInfo->id ))
-            ->set( 'session_key',       $selectQuery->bindValue( $sessionId ))
-            ->set( 'ip',                $selectQuery->bindValue( $request->getClientIp() ))
-            ->set( 'contentobject_id',  $selectQuery->bindValue( $contentId ))
-            ->set( 'parent_comment_id', $selectQuery->bindValue( $parentCommentId ))
-            ->set( 'name',              $selectQuery->bindValue( $currentUser->versionInfo->contentInfo->name ))
-            ->set( 'email',             $selectQuery->bindValue( $currentUser->email ))
-            ->set( 'url',               $selectQuery->bindValue( "" ))
-            ->set( 'text',              $selectQuery->bindValue( $data[ $this->translator->trans( 'message' )] ))
-            ->set( 'status',            $selectQuery->bindValue( $status ))
-            ->set( 'title',             $selectQuery->bindValue( "" ));
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+        $this->connection->insert('ezcomment', [
+            'language_id' => $this->getLanguageId($languageCode),
+            'created' => $created,
+            'modified' => $modified,
+            'user_id' => $currentUser->versionInfo->contentInfo->id,
+            'session_key' => $sessionId,
+            'ip' => $request->getClientIp(),
+            'contentobject_id' => $contentId,
+            'parent_comment_id' => $parentCommentId,
+            'name' => $currentUser->versionInfo->contentInfo->name,
+            'email' => $currentUser->email,
+            'url' => "",
+            'text' => $data['message'],
+            'status' => $status,
+            'title' => "",
+        ]);
 
-        return $connection->lastInsertId();
+        return $this->connection->lastInsertId();
     }
 
     /**
      * Add an anonymous comment
      *
-     * @param $connection
      * @param Request $request
      * @param LocaleConverter $localeService
      * @param array $data
      * @param $contentId
      * @param null $sessionId
      */
-    public function addAnonymousComment( $connection, Request $request, LocaleConverter $localeService,
-                                         array $data, $contentId, $sessionId = null )
-    {
-        $this->checkConnection( $connection );
+    public function addAnonymousComment(
+        Request $request,
+        LocaleConverter $localeService,
+        array $data,
+        $contentId,
+        $sessionId = null
+    ) {
 
-        $languageCode = $localeService->convertToEz( $request->getLocale() );
-        $languageId   = $this->getLanguageId( $connection, $languageCode );
+        $languageCode = $localeService->convertToEz($request->getLocale());
+        $languageId = $this->getLanguageId($languageCode);
 
-        $created    = $modified = \Time();
-        $userId     = self::ANONYMOUS_USER;
+        $created = $modified = \Time();
+        $userId = self::ANONYMOUS_USER;
         $sessionKey = $sessionId;
-        $ip         = $request->getClientIp();
+        $ip = $request->getClientIp();
         $parentCommentId = 0;
-        $name       = $data[ $this->translator->trans( 'name' )];
-        $email      = $data[ $this->translator->trans( 'email')];
-        $url        = "";
-        $text       = $data[ $this->translator->trans( 'message' )];
-        $status     = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
-        $title      = "";
+        $name = $data['name'];
+        $email = $data['email'];
+        $url = "";
+        $text = $data['message'];
+        $status = $this->hasModeration() ? self::COMMENT_WAITING : self::COMMENT_ACCEPT;
+        $title = "";
 
-        $selectQuery = $connection->createInsertQuery();
 
-        $selectQuery->insertInto( 'ezcomment' )
-            ->set( 'language_id',       $selectQuery->bindValue( $languageId ))
-            ->set( 'created',           $selectQuery->bindValue( $created ))
-            ->set( 'modified',          $selectQuery->bindValue( $modified ))
-            ->set( 'user_id',           $selectQuery->bindValue( $userId ))
-            ->set( 'session_key',       $selectQuery->bindValue( $sessionKey ))
-            ->set( 'ip',                $selectQuery->bindValue( $ip ))
-            ->set( 'contentobject_id',  $selectQuery->bindValue( $contentId ))
-            ->set( 'parent_comment_id', $selectQuery->bindValue( $parentCommentId ))
-            ->set( 'name',              $selectQuery->bindValue( $name ))
-            ->set( 'email',             $selectQuery->bindValue( $email ))
-            ->set( 'url',               $selectQuery->bindValue( $url ))
-            ->set( 'text',              $selectQuery->bindValue( $text ))
-            ->set( 'status',            $selectQuery->bindValue( $status ))
-            ->set( 'title',             $selectQuery->bindValue( $title ));
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+        $this->connection->insert('ezcomment', [
+            'language_id' => $languageId,
+            'created' => $created,
+            'modified' => $modified,
+            'user_id' => $userId,
+            'session_key' => $sessionKey,
+            'ip' => $ip,
+            'contentobject_id' => $contentId,
+            'parent_comment_id' => $parentCommentId,
+            'name' => $name,
+            'email' => $email,
+            'url' => $url,
+            'text' => $text,
+            'status' => $status,
+            'title' => $title,
+        ]);
 
-        return $connection->lastInsertId();
+        return $this->connection->lastInsertId();
     }
 
 
@@ -316,32 +284,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      */
     public function createAnonymousForm()
     {
-        $collectionConstraint = new Collection( array(
-            $this->translator->trans( 'name' ) => new NotBlank(
-                array( "message" => $this->translator->trans( "Could not be empty" ) )
-            ),
-            $this->translator->trans( 'email' ) => new Email(
-                array( "message" => $this->translator->trans( "This is not a valid email" ) )
-            ),
-            $this->translator->trans( 'message' ) => new NotBlank(
-                array( "message" => $this->translator->trans( "Could not be empty" ) )
-            ),
-            $this->translator->trans( 'parent_comment_id' ) => new NotBlank(
-                array( "message" => $this->translator->trans( "Could not be empty" ) )
-            ),
-        ));
-
-        $form = $this->formFactory->createBuilder( 'form', null, array(
-            'constraints' => $collectionConstraint
-        ))->add( $this->translator->trans( 'name' ), 'text')
-            ->add( $this->translator->trans( 'email' ), 'email')
-            ->add( $this->translator->trans( 'message' ), 'textarea' )
-            ->add( $this->translator->trans( 'parent_comment_id' ), 'hidden', array('data' => 0))
-            ->add( $this->translator->trans( 'captcha' ), 'captcha',
-                array( 'as_url' => true, 'reload' => true )
-            )
-            ->getForm();
-        return $form;
+        return $this->formFactory->createBuilder(AnonymousCommentType::class)->getForm();
     }
 
     /**
@@ -351,22 +294,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      */
     public function createUserForm()
     {
-        $collectionConstraint = new Collection( array(
-            $this->translator->trans( 'message' ) => new NotBlank(
-                array( "message" => $this->translator->trans( "Could not be empty" ) )
-            ),
-            $this->translator->trans( 'parent_comment_id' ) => new NotBlank(
-                array( "message" => $this->translator->trans( "Could not be empty" ) )
-            ),
-        ));
-
-        $form = $this->formFactory->createBuilder( 'form', null, array(
-            'constraints' => $collectionConstraint
-        ))->add( $this->translator->trans( 'message' ), 'textarea' )
-          ->add( $this->translator->trans( 'parent_comment_id' ), 'hidden', array('data' => 0))
-            ->getForm();
-
-        return $form;
+        return $this->formFactory->createBuilder(ConnectedCommentType::class)->getForm();
     }
 
     /**
@@ -375,14 +303,14 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      * @param \Symfony\Component\Form\Form $form the form
      * @return array errors messages
      */
-    public function getErrorMessages( Form $form )
+    public function getErrorMessages(Form $form)
     {
         $errors = array();
         foreach ($form->getErrors() as $key => $error) {
             $template = $error->getMessageTemplate();
             $parameters = $error->getMessageParameters();
 
-            foreach($parameters as $var => $value){
+            foreach ($parameters as $var => $value) {
                 $template = str_replace($var, $value, $template);
             }
 
@@ -401,20 +329,17 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * Send message to admin(s)
      */
-    public function sendMessage( $data, $user, $contentId, $sessionId, $commentId )
+    public function sendMessage($data, $user, $contentId, $sessionId, $commentId)
     {
-        if ($user === null)
-        {
-            $name = $data[ $this->translator->trans( 'name' )];
-            $email = $data[ $this->translator->trans( 'email' )];
-        }
-        else
-        {
-            $name   = $user->versionInfo->contentInfo->name;
-            $email  = $user->email;
+        if ($user === null) {
+            $name = $data[$this->translator->trans('name')];
+            $email = $data[$this->translator->trans('email')];
+        } else {
+            $name = $user->versionInfo->contentInfo->name;
+            $email = $user->email;
         }
 
-        $encodeSession = $this->encryption->encode( $sessionId );
+        $encodeSession = $this->encryption->encode($sessionId);
 
         $approve_url = $this->router->generate(
             'pvrezcomment_moderation',
@@ -438,19 +363,19 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         );
 
         $message = \Swift_Message::newInstance()
-            ->setSubject( $this->moderate_subject )
-            ->setFrom( $this->moderate_from )
-            ->setTo( $this->moderate_to )
+            ->setSubject($this->moderate_subject)
+            ->setFrom($this->moderate_from)
+            ->setTo($this->moderate_to)
             ->setBody(
-                $this->twig->render( $this->moderate_template, array(
-                    "name"  => $name,
+                $this->twig->render($this->moderate_template, array(
+                    "name" => $name,
                     "email" => $email,
-                    "comment" => $data[ $this->translator->trans( 'message' )],
+                    "comment" => $data['message'],
                     "approve_url" => $approve_url,
                     "reject_url" => $reject_url
                 ))
             );
-        $this->mailer->send( $message );
+        $this->mailer->send($message);
     }
 
     /**
@@ -458,43 +383,42 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      *
      * @param $contentId
      * @param $sessionHash
-     * @param $connection
      * @return bool
      */
-    public function canUpdate( $contentId, $sessionHash, $connection, $commentId )
+    public function canUpdate($contentId, $sessionHash, $commentId)
     {
-        $this->checkConnection( $connection );
 
-        $session_id = $this->encryption->decode( $sessionHash );
+        $session_id = $this->encryption->decode($sessionHash);
 
-        $selectQuery = $connection->createSelectQuery();
+        $selectQuery = $this->connection->createQueryBuilder();
 
         $selectQuery->select(
-            $connection->quoteColumn( 'id' )
+            'id'
         )->from(
-                $connection->quoteTable( 'ezcomment' )
-            )->where(
-                $selectQuery->expr->lAnd(
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'contentobject_id' ),
-                        $selectQuery->bindValue( $contentId, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'session_key' ),
-                        $selectQuery->bindValue( $session_id, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'status' ),
-                        $selectQuery->bindValue( self::COMMENT_WAITING, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'id' ),
-                        $selectQuery->bindValue( $commentId, null, \PDO::PARAM_INT )
-                    )
-                )
-            );
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+            'ezcomment'
+        )->where(
+            $selectQuery->expr()->eq(
+                'contentobject_id',
+                $selectQuery->createNamedParameter($contentId, \PDO::PARAM_INT)
+            )
+        )->andWhere(
+            $selectQuery->expr()->eq(
+                'session_key',
+                $selectQuery->createNamedParameter($session_id, \PDO::PARAM_INT)
+            )
+        )->andWhere(
+            $selectQuery->expr()->eq(
+                'status',
+                $selectQuery->createNamedParameter(self::COMMENT_WAITING, \PDO::PARAM_INT)
+            )
+        )->andWhere(
+            $selectQuery->expr()->eq(
+                'id',
+                $selectQuery->createNamedParameter($commentId, \PDO::PARAM_INT)
+            )
+        );
+        $statement = $selectQuery->execute();
+
 
         $row = $statement->fetch();
         return $row !== false ? true : false;
@@ -503,116 +427,61 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * Update status of a comment
      *
-     * @param $connection
-     * @param $commentId
+     * @param int $commentId
      * @param int $status
      * @return mixed
+     * @throws \Doctrine\DBAL\DBALException
      */
-    public function updateStatus( $connection, $commentId, $status = self::COMMENT_ACCEPT )
+    public function updateStatus($commentId, $status = self::COMMENT_ACCEPT)
     {
-        $this->checkConnection( $connection );
-
-        $updateQuery = $connection->createUpdateQuery();
-
-        $updateQuery->update(
-            $connection->quoteTable( 'ezcomment' )
-        )->set(
-            $connection->quoteColumn( 'status' ),
-                $updateQuery->bindValue( $status, null, \PDO::PARAM_INT )
-            )->where(
-                $updateQuery->expr->lAnd(
-                    $updateQuery->expr->eq(
-                        $connection->quoteColumn( 'id' ),
-                        $updateQuery->bindValue( $commentId, null, \PDO::PARAM_INT )
-                    ),
-                    $updateQuery->expr->eq(
-                        $connection->quoteColumn( 'status' ),
-                        $updateQuery->bindValue( self::COMMENT_WAITING, null, \PDO::PARAM_INT )
-                    )
-                )
-            );
-        $statement = $updateQuery->prepare();
-        return $statement->execute();
+        return $this->connection->update('ezcomment',
+            ['status' => $status],
+            ['id' => $commentId, 'status' => self::COMMENT_WAITING],
+            ['id' => \PDO::PARAM_INT, 'status' => \PDO::PARAM_INT]
+        );
     }
 
     /**
-     * @param $connection
-     * @param $commentId
+     * @param int $commentId
      * @param int $status
      * @return mixed
+     * @throws \Doctrine\DBAL\DBALException
      */
-    public function updateStatusFromUI( $connection, $commentId, $status = self::COMMENT_REJECTED )
+    public function updateStatusFromUI($commentId, $status = self::COMMENT_REJECTED)
     {
-        $this->checkConnection( $connection );
-
-        $updateQuery = $connection->createUpdateQuery();
-
-        $updateQuery->update(
-            $connection->quoteTable( 'ezcomment' )
-        )->set(
-            $connection->quoteColumn( 'status' ),
-            $updateQuery->bindValue( $status, null, \PDO::PARAM_INT )
-        )->where(
-            $updateQuery->expr->eq(
-                $connection->quoteColumn( 'id' ),
-                $updateQuery->bindValue( $commentId, null, \PDO::PARAM_INT )
-            )
+        return $this->connection->update('ezcomment',
+            ['status' => $status],
+            ['id' => $commentId],
+            ['id' => \PDO::PARAM_INT, 'status' => \PDO::PARAM_INT]
         );
-        $statement = $updateQuery->prepare();
-        return $statement->execute();
     }
 
     /**
      * @param bool|int $contentId
-     * @param EzcDbHandler $handler
      * @param int $status
      * @return int
      */
-    public function getCountComments( $contentId = false, EzcDbHandler $handler, $status = -1 )
+    public function getCountComments($contentId = false, $status = -1)
     {
-        $contentFilter = $statusFilter = "";
 
-        $this->checkConnection( $handler );
-
-        $selectQuery = $handler->createSelectQuery();
-        $selectQuery->select( '*' )->from( $handler->quoteTable( 'ezcomment' ) );
+        $selectQuery = $this->connection->createQueryBuilder();
+        $selectQuery->select('*')->from('ezcomment');
 
         if ($contentId) {
-            $contentFilter = $selectQuery->expr->eq(
-                $handler->quoteColumn( 'contentobject_id' ),
-                $selectQuery->bindValue( $contentId, null, \PDO::PARAM_INT )
-            );
+            $selectQuery->andWhere($selectQuery->expr()->eq(
+                'contentobject_id',
+                $selectQuery->createNamedParameter($contentId, \PDO::PARAM_INT)
+            ));
         }
 
-        if ($status and $status != -1) {
-            $statusFilter = $selectQuery->expr->eq(
-                $handler->quoteColumn( 'status' ),
-                $selectQuery->bindValue( $status, null, \PDO::PARAM_INT )
-            );
+        if ($status && $status != -1) {
+            $selectQuery->andWhere($selectQuery->expr()->eq(
+                'status',
+                $selectQuery->createNamedParameter($status, \PDO::PARAM_INT)
+            ));
         }
 
-        // Where with an AND
-        if ($contentFilter != "" and $statusFilter != "") {
-            $selectQuery->where(
-                $selectQuery->expr->lAnd(
-                    $contentFilter, $statusFilter
-                )
-            );
-        }
-
-        // Filter only with ContentId
-        if (($contentFilter != "" and $statusFilter == "")) {
-            $selectQuery->where( $contentFilter );
-        }
-
-        // Filter only with Status
-        if (($contentFilter == "" and $statusFilter != "")) {
-            $selectQuery->where( $statusFilter );
-        }
-
-        $statement = $selectQuery->prepare();
-        $statement->execute();
-
+        $statement = $selectQuery->execute();
         return $statement->rowCount();
     }
 
@@ -623,6 +492,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     {
         return $this->comment_reply;
     }
+
     /**
      * @return bool
      */
@@ -643,7 +513,6 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     /**
      * Get list of last comments
      *
-     * @param DatabaseHandler $connection Get connection to eZ Publish Database
      * @param int $limit
      *
      * @param int $offset
@@ -651,127 +520,111 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      * @return mixed Array or false
      * @internal param bool $onlyAccept
      */
-    public function getLastComments( DatabaseHandler $connection, $limit = 5, $offset = 0, $status = -1 )
+    public function getLastComments($limit = 5, $offset = 0, $status = -1)
     {
-        $this->checkConnection( $connection );
 
-        /** @var \eZ\Publish\Core\Persistence\Database\SelectQuery $selectQuery */
-        $selectQuery = $connection->createSelectQuery();
+        $selectQuery = $this->connection->createQueryBuilder();
 
         $column = "created";
-        $sort   = $selectQuery::DESC;
+        $sort = 'DESC';
 
         $selectQuery->select(
-            $connection->quoteColumn( 'id' ),
-            $connection->quoteColumn( 'created' ),
-            $connection->quoteColumn( 'contentobject_id' ),
-            $connection->quoteColumn( 'user_id' ),
-            $connection->quoteColumn( 'name' ),
-            $connection->quoteColumn( 'email' ),
-            $connection->quoteColumn( 'url' ),
-            $connection->quoteColumn( 'text' ),
-            $connection->quoteColumn( 'title' ),
-            $connection->quoteColumn( 'status' )
+            'id',
+            'created',
+            'contentobject_id',
+            'user_id',
+            'name',
+            'email',
+            'url',
+            'text',
+            'title',
+            'status'
         )->from(
-                $connection->quoteTable( 'ezcomment' )
+            'ezcomment'
         );
 
         // Filter only by accept comment ...
         if ($status !== -1) {
             $selectQuery->where(
-                $selectQuery->expr->eq(
-                    $connection->quoteColumn( 'status' ),
-                    $selectQuery->bindValue( $status, null, \PDO::PARAM_INT )
+                $selectQuery->expr()->eq(
+                    'status',
+                    $selectQuery->createNamedParameter($status, \PDO::PARAM_INT)
                 )
             );
         }
 
-        $selectQuery->orderBy( $column, $sort )->limit( $limit, (int)$offset );
+        $selectQuery->orderBy($column, $sort)->setMaxResults($limit)->setFirstResult((int)$offset);
 
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+        $statement = $selectQuery->execute();
 
-        return $statement->fetchAll( \PDO::FETCH_ASSOC );
+
+        return $statement->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /**
      * Get list of last comments
      *
-     * @param $connection Get connection to eZ Publish Database
+     * @param $userId
      * @param int $limit
      *
      * @return mixed Array or false
      */
-    public function getLastCommentsByUser( $connection, $userId, $limit = 5 )
+    public function getLastCommentsByUser($userId, $limit = 5)
     {
-        $this->checkConnection( $connection );
-
-        /** @var \ezcQuerySelect $selectQuery */
-        $selectQuery = $connection->createSelectQuery();
+        $selectQuery = $this->connection->createQueryBuilder();
 
         $column = "created";
-        $sort   = $selectQuery::DESC;
+        $sort = 'DESC';
 
-        $selectQuery->select(
-            $connection->quoteColumn( 'id' ),
-            $connection->quoteColumn( 'created' ),
-            $connection->quoteColumn( 'contentobject_id' ),
-            $connection->quoteColumn( 'user_id' ),
-            $connection->quoteColumn( 'name' ),
-            $connection->quoteColumn( 'email' ),
-            $connection->quoteColumn( 'url' ),
-            $connection->quoteColumn( 'text' ),
-            $connection->quoteColumn( 'title' )
-        )->from(
-                $connection->quoteTable( 'ezcomment' )
-            )->where(
-                $selectQuery->expr->lAnd(
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'status' ),
-                        $selectQuery->bindValue( self::COMMENT_ACCEPT, null, \PDO::PARAM_INT )
-                    ),
-                    $selectQuery->expr->eq(
-                        $connection->quoteColumn( 'user_id' ),
-                        $selectQuery->bindValue( $userId, null, \PDO::PARAM_INT )
-                    )
+        $selectQuery
+            ->select('id', 'created', 'contentobject_id', 'user_id', 'name', 'email', 'url', 'text', 'title')
+            ->from('ezcomment')
+            ->where(
+                $selectQuery->expr()->eq(
+                    'status',
+                    $selectQuery->createNamedParameter(self::COMMENT_ACCEPT, \PDO::PARAM_INT)
                 )
-            )->orderBy( $column, $sort )
-             ->limit( $limit );
+            )->andWhere(
+                $selectQuery->expr()->eq(
+                    'user_id',
+                    $selectQuery->createNamedParameter($userId, \PDO::PARAM_INT)
+                )
+            )->orderBy($column, $sort)
+            ->setMaxResults($limit);
 
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+        $statement = $selectQuery->execute();
 
-        return $statement->fetchAll( \PDO::FETCH_ASSOC );
+        return $statement->fetchAll(\PDO::FETCH_ASSOC);
     }
 
 
     /**
      * Get ezcontent_language Id
-     * @param \eZ\Publish\Core\Persistence\Legacy\EzcDbHandler $connection
      * @param $languageCode
      * @return int
      */
-    protected function getLanguageId( $connection, $languageCode ) {
-        /** @var \ezcQuerySelect $selectQuery */
-        $selectQuery = $connection->createSelectQuery();
+    protected function getLanguageId($languageCode)
+    {
+        $selectQuery = $this->connection->createQueryBuilder();
 
         $selectQuery->select(
-            $connection->quoteColumn( 'id' )
+            'id'
         )->from(
-                $connection->quoteTable( 'ezcontent_language' )
-            )->where(
-                $selectQuery->expr->eq(
-                    $connection->quoteColumn( 'locale' ),
-                    $selectQuery->bindValue( $languageCode, null, \PDO::PARAM_STR )
-                )
-            );
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+            'ezcontent_language'
+        )->where(
+            $selectQuery->expr()->eq(
+                'locale',
+                $selectQuery->createNamedParameter($languageCode, \PDO::PARAM_STR)
+            )
+        );
+        $statement = $selectQuery->execute();
+
 
         $row = $statement->fetch();
-        if( isset($row['id']) ) {
+        if (isset($row['id'])) {
             return $row['id'];
-        } {
+        }
+        {
             return 0;
         }
     }
@@ -782,7 +635,7 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
      * @param $status
      * @return bool
      */
-    public function statusExists( $status )
+    public function statusExists($status)
     {
         return in_array($status, [
             self::COMMENT_WAITING,
@@ -793,44 +646,34 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
 
     /**
      * @param $commentId
-     * @param DatabaseHandler $connection
      * @return bool
      */
-    public function commentExists($commentId, DatabaseHandler $connection)
+    public function commentExists($commentId)
     {
-        $selectQuery = $connection->createSelectQuery();
-        $selectQuery->select( '*' )
-            ->from( $connection->quoteTable('ezcomment') )
-            ->where( $selectQuery->expr->eq(
-                $connection->quoteColumn( 'id' ),
-                $selectQuery->bindValue( $commentId, null, \PDO::PARAM_INT)
+        $selectQuery = $this->connection->createQueryBuilder();
+        $selectQuery->select('*')
+            ->from('ezcomment')
+            ->where($selectQuery->expr()->eq(
+                'id',
+                $selectQuery->createNamedParameter($commentId, \PDO::PARAM_INT)
             ));
-        $statement = $selectQuery->prepare();
-        $statement->execute();
+        $statement = $selectQuery->execute();
+
         return $statement->rowCount() > 0 ? true : false;
     }
 
     /**
-     * @param $commentId
-     * @param DatabaseHandler $connection
-     * @return NotFoundException
+     * @param int $commentId
      * @throws NotFoundException
+     * @throws \Doctrine\DBAL\DBALException
+     * @throws \Doctrine\DBAL\Exception\InvalidArgumentException
      */
-    public function deleteById( $commentId, DatabaseHandler $connection )
+    public function deleteById($commentId)
     {
-        if (!$this->commentExists($commentId, $connection)) {
-            throw new NotFoundException( "Comment with Id $commentId not exists ! ");
+        if (!$this->commentExists($commentId)) {
+            throw new NotFoundException("Comment with Id $commentId not exists ! ");
         }
 
-        $deleteQuery = $connection->createDeleteQuery();
-        $deleteQuery->deleteFrom( 'ezcomment' )
-            ->where(
-                $deleteQuery->expr->eq(
-                    'id', $deleteQuery->bindValue( $commentId, null, \PDO::PARAM_INT )
-                )
-            );
-
-        $statement = $deleteQuery->prepare();
-        $statement->execute();
+        $this->connection->delete('ezcomment', ['id' => $commentId], ['id' => \PDO::PARAM_INT]);
     }
 }

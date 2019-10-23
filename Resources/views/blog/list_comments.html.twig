@@ -4,7 +4,7 @@
 {% if params.canComment %}
     {{ render( controller( "PvrEzCommentBundle:Comment:getFormComment", {'contentId': contentId })) }}
 {% else %}
-    <div class="comment-error">Current user doesn't have access to post a comment !</div>
+    <div class="comment-error">{% trans %}Current user doesn't have access to post a comment !{% endtrans %}</div>
 {% endif %}
 
 {% if comments %}
@@ -35,13 +35,12 @@
         window.full_url = "{{ ezpublish.systemUriString }}";
     </script>
 
-    {# comment.user_id  comment.email comment.title #}
     <ul id="comment-list" class="comment-list">
     {% for comment in comments %}
         <li class="comment" id="comment-{{ comment.id }}" data-date="{{ comment.created }}">
             <div class="comment-role">
                 <div class="avatar">
-                    <img class="user" alt="Avatar" src="http://www.gravatar.com/avatar/00000000000000000000000000000000?d=mm&amp;size=48">
+                    <img class="user" alt="Avatar" src="{{ asset('/bundles/pvrezcomment/images/user.png') }}">
                 </div>
                 <div class="comment-body">
                     <header>
@@ -52,18 +51,6 @@
                     <div class="comment-container">
                         {{ comment.text|nl2br }}
                     </div>
-                    <footer>{#
-                        <menu>
-                            <li class="reply">
-                                <a href="#">Answer</a>
-                            </li>
-                            <li class="bullet"> • </li>
-                            <li class="share">
-                                <a href="#">Share</a>
-                            </li>
-                        </menu>
-                        #}
-                    </footer>
 
                 </div>
             </div>

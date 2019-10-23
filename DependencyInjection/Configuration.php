@@ -41,6 +41,7 @@ class Configuration implements ConfigurationInterface
                     ->defaultFalse()
                 ->end()
                 ->arrayNode( 'moderate_mail' )
+                    ->addDefaultsIfNotSet()
                     ->children()
                         ->scalarNode( 'subject' )
                             ->defaultValue( 'New Notification' )
@@ -51,7 +52,7 @@ class Configuration implements ConfigurationInterface
                             ->cannotBeEmpty()
                         ->end()
                         ->scalarNode( 'to' )
-                            ->cannotBeEmpty()
+                            ->defaultValue('me@example.com')
                             ->cannotBeEmpty()
                         ->end()
                         ->scalarNode( 'template' )
@@ -61,6 +62,7 @@ class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->arrayNode( 'notify_mail' )
+                    ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode( 'enabled' )
                             ->defaultFalse()
@@ -80,16 +82,14 @@ class Configuration implements ConfigurationInterface
                      ->end()
                 ->end()
                 ->arrayNode( 'dashboard' )
+                    ->addDefaultsIfNotSet()
                     ->children()
                         ->integerNode( 'limit' )
-                            ->min(1)->defaultValue(5)
+                            ->min(1)->defaultValue(10)
                         ->end()
                     ->end()
                 ->end()
             ->end();
-
-
-
 
         // Here you should define the parameters that are allowed to
         // configure your bundle. See the documentation linked above for
