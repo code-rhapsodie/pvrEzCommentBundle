@@ -23,7 +23,6 @@ use pvr\EzCommentBundle\Form\ConnectedCommentType;
 use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormFactory;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Translation\TranslatorInterface;
 
 class PvrEzCommentManager implements PvrEzCommentManagerInterface
 {
@@ -40,8 +39,6 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     protected $moderate_to;
     protected $moderate_template;
     protected $isNotify;
-    /** @var $translator \Symfony\Component\Translation\TranslatorInterface */
-    protected $translator;
     /** @var $formFactory \Symfony\Component\Form\FormFactory */
     protected $formFactory;
     protected $twig;
@@ -69,14 +66,6 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
         $this->encryption = $encryption;
         $this->router = $route;
         $this->connection = $connection;
-    }
-
-    /**
-     * @param TranslatorInterface $translator
-     */
-    public function setTranslator(TranslatorInterface $translator)
-    {
-        $this->translator = $translator;
     }
 
     /**
@@ -331,8 +320,8 @@ class PvrEzCommentManager implements PvrEzCommentManagerInterface
     public function sendMessage($data, $user, $contentId, $sessionId, $commentId)
     {
         if (null === $user) {
-            $name = $data[$this->translator->trans('name')];
-            $email = $data[$this->translator->trans('email')];
+            $name = $data['name'];
+            $email = $data['email'];
         } else {
             $name = $user->versionInfo->contentInfo->name;
             $email = $user->email;
